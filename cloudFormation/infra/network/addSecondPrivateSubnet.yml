@@ -1,0 +1,41 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Add additional private subnet in us-east-1b to existing VPC'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: Dev
+    AllowedValues: [Dev, UAT, PTE, Production]
+    Description: Environment name matching existing stack
+
+  NewPrivateSubnetCidr:
+    Type: String
+    Default: '10.0.3.0/24'
+    Description: CIDR block for the new private subnet (following existing scheme)
+
+Resources:
+  NewPrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: 
+        Fn::ImportValue: !Sub ${Environment}-VpcId
+      CidrBlock: !Ref NewPrivateSubnetCidr
+      AvailabilityZone: us-east-1b
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment}-Private-Subnet-1b
+
+  NewPrivateSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref NewPrivateSubnet
+      RouteTableId: 
+        Fn::ImportValue: !Sub ${Environment}-PrivateRouteTableId
+
+Outputs:
+  NewPrivateSubnetId:
+    Description: The ID of the new private subnet in us-east-1b
+    Value: !Ref NewPrivateSubnet
+    Export:
+      Name: !Sub ${Environment}-PrivateSubnet1bId

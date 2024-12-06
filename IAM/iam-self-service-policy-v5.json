@@ -1,0 +1,62 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AllowManageOwnSecurityCredentials",
+            "Effect": "Allow",
+            "Action": [
+                "iam:CreateAccessKey",
+                "iam:DeleteAccessKey",
+                "iam:GetAccessKeyLastUsed",
+                "iam:GetAccountSummary",
+                "iam:ListAccessKeys",
+                "iam:UpdateAccessKey",
+                "iam:ListAccountAliases",
+                "iam:GetAccountPasswordPolicy",
+                "iam:ListSTSRegionalEndpointsStatus",
+                "iam:GetLoginProfile",
+                "iam:UpdateLoginProfile",
+                "iam:ListSigningCertificates",
+                "iam:DeleteSigningCertificate",
+                "iam:UpdateSigningCertificate",
+                "iam:UploadSigningCertificate",
+                "iam:ListSSHPublicKeys",
+                "iam:GetSSHPublicKey",
+                "iam:DeleteSSHPublicKey",
+                "iam:UpdateSSHPublicKey",
+                "iam:UploadSSHPublicKey",
+                "iam:ChangePassword",
+                "iam:ListServiceSpecificCredentials",
+                "iam:CreateServiceSpecificCredential",
+                "iam:DeleteServiceSpecificCredential",
+                "iam:UpdateServiceSpecificCredential",
+                "iam:ResetServiceSpecificCredential"
+            ],
+            "Resource": [
+                "arn:aws:iam::818140567777:user/${aws:username}"
+            ]
+        },
+        {
+            "Sid": "RegionalServiceAccess",
+            "Effect": "Allow",
+            "Action": [
+                "ec2:*",
+                "rds:*",
+                "s3:*",
+                "vpc:*",
+                "elasticloadbalancing:*",
+                "cloudwatch:*",
+                "logs:*"
+            ],
+            "Resource": "*",
+            "Condition": {
+                "StringEquals": {
+                    "aws:RequestedRegion": [
+                        "us-east-1",
+                        "us-west-1"
+                    ]
+                }
+            }
+        }
+    ]
+}

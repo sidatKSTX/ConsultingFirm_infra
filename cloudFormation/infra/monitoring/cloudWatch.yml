@@ -1,0 +1,132 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template for CloudWatch Alarms'
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [Dev, UAT, PTE, Production]
+    Description: The target environment for this stack
+
+  EC2InstanceId:
+    Type: AWS::EC2::Instance::Id
+    Description: The ID of the EC2 instance to monitor
+
+  RDSInstanceIdentifier:
+    Type: String
+    Description: The identifier of the RDS instance to monitor
+
+  S3BucketName:
+    Type: String
+    Description: The name of the S3 bucket to monitor
+
+  AlarmEmail:
+    Type: String
+    Description: Email address to notify when alarms are triggered
+
+Resources:
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ${Environment}-Alarms
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref AlarmEmail
+
+  EC2CPUUtilizationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${Environment}-EC2-High-CPU-Utilization
+      AlarmDescription: Alarm if CPU utilization exceeds 80% for 5 minutes
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 80
+      AlarmActions:
+        - !Ref AlarmTopic
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref EC2InstanceId
+      ComparisonOperator: GreaterThanThreshold
+
+  RDSCPUUtilizationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${Environment}-RDS-High-CPU-Utilization
+      AlarmDescription: Alarm if database CPU utilization exceeds 80% for 5 minutes
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 80
+      AlarmActions:
+        - !Ref AlarmTopic
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref RDSInstanceIdentifier
+      ComparisonOperator: GreaterThanThreshold
+
+  RDSLowFreeStorageSpaceAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${Environment}-RDS-Low-Free-Storage-Space
+      AlarmDescription: Alarm if free storage space is less than 20% for 5 minutes
+      MetricName: FreeStorageSpace
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 20
+      AlarmActions:
+        - !Ref AlarmTopic
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref RDSInstanceIdentifier
+      ComparisonOperator: LessThanThreshold
+
+  S3BucketSizeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${Environment}-S3-Bucket-Size-Exceeds-Limit
+      AlarmDescription: Alarm if S3 bucket size exceeds 5GB
+      MetricName: BucketSizeBytes
+      Namespace: AWS/S3
+      Statistic: Average
+      Period: 86400  # Check once per day
+      EvaluationPeriods: 1
+      Threshold: 5000000000  # 5GB in bytes
+      AlarmActions:
+        - !Ref AlarmTopic
+      Dimensions:
+        - Name: BucketName
+          Value: !Ref S3BucketName
+        - Name: StorageType
+          Value: StandardStorage
+      ComparisonOperator: GreaterThanThreshold
+
+  EC2StatusCheckFailedAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${Environment}-EC2-Status-Check-Failed
+      AlarmDescription: Alarm if status check fails for EC2 instance
+      MetricName: StatusCheckFailed
+      Namespace: AWS/EC2
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      AlarmActions:
+        - !Ref AlarmTopic
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref EC2InstanceId
+      ComparisonOperator: GreaterThanThreshold
+
+Outputs:
+  AlarmTopicArn:
+    Description: The ARN of the SNS topic for alarms
+    Value: !Ref AlarmTopic
+    Export:
+      Name: !Sub ${AWS::StackName}-AlarmTopicArn

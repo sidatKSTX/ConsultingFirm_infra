@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Aurora PostgreSQL Cluster with specific parameters for VPC, subnets, and security configurations'
+
+Parameters:
+  VpcId:
+    Type: String
+    Description: VPC ID
+
+  VpcCidrBlock:
+    Type: String
+    Description: VPC CIDR Block
+
+  PrivateSubnetId:
+    Type: String
+    Description: Primary Private Subnet ID for Aurora PostgreSQL
+
+  PrivateSubnet2Id:
+    Type: String
+    Description: Secondary Private Subnet ID for multi-AZ configuration
+
+  VpcEndpointSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security Group ID for VPC endpoint access
+
+  EnvironmentName:
+    Type: String
+    Description: Environment Name
+
+  DBName:
+    Type: String
+    Description: Database Name
+
+  DBUsername:
+    Type: String
+    Description: Database Username
+
+  DBPassword:
+    Type: String
+    Description: Database Password
+    NoEcho: true
+
+  DBInstanceClass:
+    Type: String
+    Description: Database Instance Class
+
+  DBAllocatedStorage:
+    Type: String
+    Description: Allocated Storage Size
+
+  NetworkInterfaceId:
+    Type: String
+    Description: Network Interface ID for connecting Aurora
+
+  VpcEndpointId:
+    Type: String
+    Description: VPC Endpoint ID for private access to database
+
+Resources:
+  # DB Subnet Group for Multi-AZ setup
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for Aurora PostgreSQL
+      SubnetIds:
+        - !Ref PrivateSubnetId
+        - !Ref PrivateSubnet2Id
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-DB-SubnetGroup"
+
+  # Aurora DB Cluster
+  AuroraDBCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      Engine: aurora-postgresql
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroupId  # Ensure this is applied correctly
+      StorageEncrypted: true
+      BackupRetentionPeriod: 7
+      DBClusterIdentifier: !Sub "${EnvironmentName}-aurora-cluster"
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # Aurora DB Instance
+  AuroraDBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceClass: !Ref DBInstanceClass
+      DBClusterIdentifier: !Ref AuroraDBCluster
+      Engine: aurora-postgresql
+      PubliclyAccessible: false
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+Outputs:
+  AuroraDBClusterEndpoint:
+    Description: Aurora PostgreSQL cluster endpoint
+    Value: !GetAtt AuroraDBCluster.Endpoint.Address
+    Export:
+      Name: !Sub "${AWS::StackName}-AuroraDBClusterEndpoint"
+
+  AuroraDBClusterReaderEndpoint:
+    Description: Aurora PostgreSQL cluster reader endpoint
+    Value: !GetAtt AuroraDBCluster.ReaderEndpoint.Address
+    Export:
+      Name: !Sub "${AWS::StackName}-AuroraDBClusterReaderEndpoint"
+

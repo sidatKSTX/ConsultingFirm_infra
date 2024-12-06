@@ -1,0 +1,23 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "rds:Describe*",
+                "rds:ListTagsForResource",
+                "rds:DownloadDBLogFilePortion"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Deny",
+            "Action": [
+                "rds:DeleteDB*",
+                "rds:StopDB*",
+                "rds:ModifyDB*"
+            ],
+            "Resource": "*"
+        }
+    ]
+}

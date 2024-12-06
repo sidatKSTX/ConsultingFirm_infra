@@ -1,0 +1,30 @@
+Key validation points:
+
+VPC Endpoint State:
+
+Should be "available"
+Indicates endpoint is operational
+
+
+VPC ID Match:
+
+Should match your VPC
+Ensures endpoint is in correct VPC
+
+
+DNS Entries:
+
+Should have valid DNS entries
+Required for endpoint resolution
+
+
+Security Groups:
+
+Should have correct security group
+Controls access to endpoint
+
+
+Subnet Associations:
+
+Should be in correct subnets
+Determines network accessibility

@@ -1,0 +1,88 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template for EC2 Instances'
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [Dev, UAT, PTE, Production]
+    Description: The target environment for this stack
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The ID of the VPC
+
+  PublicSubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: The ID of the public subnet
+
+  PublicSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: The ID of the public security group
+
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+    Description: The instance type for the EC2 instances
+
+  KeyPairName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances
+
+  AmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+    Description: The ID of the AMI to use for the EC2 instances
+
+Resources:
+  WebServerInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: !Ref AmiId
+      KeyName: !Ref KeyPairName
+      NetworkInterfaces: 
+        - AssociatePublicIpAddress: "true"
+          DeviceIndex: "0"
+          GroupSet: 
+            - !Ref PublicSecurityGroupId
+          SubnetId: !Ref PublicSubnetId
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          yum install -y httpd
+          systemctl start httpd
+          systemctl enable httpd
+          echo "<h1>Hello from ${Environment} environment</h1>" > /var/www/html/index.html
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment}-WebServer
+
+  WebServerEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      InstanceId: !Ref WebServerInstance
+
+Outputs:
+  WebServerInstanceId:
+    Description: The ID of the web server EC2 instance
+    Value: !Ref WebServerInstance
+    Export:
+      Name: !Sub ${AWS::StackName}-WebServerInstanceId
+
+  WebServerPublicDNS:
+    Description: The public DNS name of the web server
+    Value: !GetAtt WebServerInstance.PublicDnsName
+    Export:
+      Name: !Sub ${AWS::StackName}-WebServerPublicDNS
+
+  WebServerPublicIP:
+    Description: The public IP address of the web server
+    Value: !Ref WebServerEIP
+    Export:
+      Name: !Sub ${AWS::StackName}-WebServerPublicIP

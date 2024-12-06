@@ -1,0 +1,122 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'RDS PostgreSQL instance using existing VPC, single subnet, and VPC endpoint configurations'
+
+Parameters:
+  PrivateSubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Private subnet ID for RDS deployment
+
+  ExistingSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Existing Security Group ID for RDS
+
+  VpcEndpointId:
+    Type: String
+    Description: Existing VPC Endpoint ID for RDS connection
+
+  Parameters:
+    PrimaryAZ:
+      Type: AWS::EC2::AvailabilityZone::Name
+      Description: Primary AZ for RDS deployment
+    SecondaryAZ:
+      Type: AWS::EC2::AvailabilityZone::Name
+      Description: Secondary AZ for subnet group requirement
+
+  EnvironmentName:
+    Type: String
+    Description: Environment name (e.g., dev, staging, prod)
+    AllowedValues: ['dev', 'staging', 'prod']
+
+  DBInstanceClass:
+    Type: String
+    Default: db.t3.micro
+    Description: Database instance class
+    AllowedValues:
+      - db.t3.micro
+      - db.t3.small
+      - db.t3.medium
+      - db.t3.large
+
+  DBName:
+    Type: String
+    Description: Database name
+    MinLength: 1
+    MaxLength: 64
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+
+  DBUsername:
+    Type: String
+    Description: Database admin username
+    NoEcho: true
+    MinLength: 1
+    MaxLength: 16
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+
+  DBPassword:
+    Type: String
+    Description: Database admin password
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 41
+
+  DBAllocatedStorage:
+    Type: Number
+    Default: 20
+    MinValue: 20
+    MaxValue: 1000
+    Description: Allocated storage size in GB
+
+Resources:
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+#      AllowSingleSubnet: true
+      DBSubnetGroupDescription: Single subnet group for RDS instance
+      SubnetIds: 
+        - !Ref PrivateSubnetId
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-db-subnet-group
+
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    Properties:
+      AvailabilityZone: !Ref PrimaryAZ 
+#      DBInstanceIdentifier: !Sub ${EnvironmentName}-postgres
+      Engine: postgres
+      EngineVersion: '14.7'
+      DBInstanceClass: !Ref DBInstanceClass
+      AllocatedStorage: !Ref DBAllocatedStorage
+      StorageType: gp2
+      StorageEncrypted: true
+      DBName: !Ref DBName
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      MultiAZ: false
+      AvailabilityZone: !Ref AvailabilityZone
+      PubliclyAccessible: false
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref ExistingSecurityGroupId
+      BackupRetentionPeriod: 1
+      EnablePerformanceInsights: true
+      AutoMinorVersionUpgrade: false
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: VpcEndpoint
+          Value: !Ref VpcEndpointId
+
+Outputs:
+  RDSEndpoint:
+    Description: RDS instance endpoint
+    Value: !GetAtt RDSInstance.Endpoint.Address
+    Export:
+      Name: !Sub ${AWS::StackName}-RDSEndpoint
+
+  RDSPort:
+    Description: RDS instance port
+    Value: !GetAtt RDSInstance.Endpoint.Port
+    Export:
+      Name: !Sub ${AWS::StackName}-RDSPort

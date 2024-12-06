@@ -1,0 +1,82 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template for S3 Buckets'
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [Dev, UAT, PTE, Production]
+    Description: The target environment for this stack
+
+  BucketName:
+    Type: String
+    Description: The name of the S3 bucket
+
+  EnableVersioning:
+    Type: String
+    AllowedValues: [true, false]
+    Default: false
+    Description: Enable versioning on the bucket
+
+  EnableEncryption:
+    Type: String
+    AllowedValues: [true, false]
+    Default: true
+    Description: Enable server-side encryption on the bucket
+
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${Environment}-${BucketName}
+      VersioningConfiguration:
+        Status: !If [EnableVersioning, Enabled, Suspended]
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - !If
+            - EnableEncryption
+            - ServerSideEncryptionByDefault:
+                SSEAlgorithm: AES256
+            - !Ref AWS::NoValue
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  S3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3Bucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: HTTPSOnly
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !Sub arn:aws:s3:::${S3Bucket}
+              - !Sub arn:aws:s3:::${S3Bucket}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
+Conditions:
+  EnableVersioning: !Equals [!Ref EnableVersioning, true]
+  EnableEncryption: !Equals [!Ref EnableEncryption, true]
+
+Outputs:
+  S3BucketName:
+    Description: The name of the S3 bucket
+    Value: !Ref S3Bucket
+    Export:
+      Name: !Sub ${AWS::StackName}-S3BucketName
+
+  S3BucketArn:
+    Description: The ARN of the S3 bucket
+    Value: !GetAtt S3Bucket.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-S3BucketArn

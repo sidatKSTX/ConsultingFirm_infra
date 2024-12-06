@@ -1,0 +1,13 @@
+# Validation points
+1. Port check:
+   - FromPort should be 3306
+   - ToPort should be 3306
+   - IpProtocol should be "tcp"
+
+2. Source check:
+   - UserIdGroupPairs (Security group references)
+   - IpRanges (CIDR blocks)
+
+3. Permissions check:
+   - Verify allowed source security groups
+   - Check for any overly permissive rules (0.0.0.0/0)

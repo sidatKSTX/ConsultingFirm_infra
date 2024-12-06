@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+
+import boto3
+import argparse
+from botocore.exceptions import ClientError
+
+class VPCResourceAnalyzer:
+    def __init__(self, region):
+        self.cf = boto3.client('cloudformation', region_name=region)
+        self.ec2 = boto3.client('ec2', region_name=region)
+
+    def list_vpc_resources(self, vpc_id=None):
+        try:
+            # Get all active stacks
+            stacks = self.cf.list_stacks(
+                StackStatusFilter=['CREATE_COMPLETE', 'UPDATE_COMPLETE', 'UPDATE_ROLLBACK_COMPLETE']
+            )['StackSummaries']
+
+            print("\n=== VPC Resources in CloudFormation Stacks ===")
+            
+            for stack in stacks:
+                stack_name = stack['StackName']
+                print(f"\nChecking stack: {stack_name}")
+                
+                try:
+                    # Get stack resources
+                    resources = self.cf.list_stack_resources(StackName=stack_name)['StackResourceSummaries']
+                    
+                    # Filter VPC-related resources
+                    vpc_resources = [r for r in resources if (
+                        'VPC' in r['ResourceType'] or
+                        r['ResourceType'] in [
+                            'AWS::EC2::VPC',
+                            'AWS::EC2::Subnet',
+                            'AWS::EC2::SecurityGroup',
+                            'AWS::RDS::DBSubnetGroup'
+                        ] or
+                        (r.get('PhysicalResourceId', '').startswith(('vpc-', 'subnet-', 'sg-')))
+                    )]
+                    
+                    if vpc_resources:
+                        print(f"Found {len(vpc_resources)} VPC-related resources:")
+                        for resource in vpc_resources:
+                            # If vpc_id is specified, only show matching resources
+                            if not vpc_id or vpc_id in resource.get('PhysicalResourceId', ''):
+                                print(f"\n  Resource ID: {resource['LogicalResourceId']}")
+                                print(f"  Type: {resource['ResourceType']}")
+                                print(f"  Physical ID: {resource.get('PhysicalResourceId', 'N/A')}")
+                                print(f"  Status: {resource['ResourceStatus']}")
+                                
+                                # Get additional details for specific resource types
+                                if resource['ResourceType'] == 'AWS::EC2::SecurityGroup':
+                                    self.get_security_group_details(resource.get('PhysicalResourceId'))
+                                elif resource['ResourceType'] == 'AWS::EC2::Subnet':
+                                    self.get_subnet_details(resource.get('PhysicalResourceId'))
+                
+                except ClientError as e:
+                    print(f"Error accessing stack {stack_name}: {str(e)}")
+
+        except ClientError as e:
+            print(f"Error listing stacks: {str(e)}")
+
+    def get_security_group_details(self, sg_id):
+        try:
+            response = self.ec2.describe_security_groups(GroupIds=[sg_id])
+            sg = response['SecurityGroups'][0]
+            print(f"    Security Group Name: {sg['GroupName']}")
+            print("    Inbound Rules:")
+            for rule in sg['IpPermissions']:
+                protocol = rule.get('IpProtocol', 'all')
+                from_port = rule.get('FromPort', 'all')
+                to_port = rule.get('ToPort', 'all')
+                print(f"    - {protocol} {from_port}-{to_port}")
+        except ClientError:
+            print("    Unable to fetch security group details")
+
+    def get_subnet_details(self, subnet_id):
+        try:
+            response = self.ec2.describe_subnets(SubnetIds=[subnet_id])
+            subnet = response['Subnets'][0]
+            print(f"    CIDR Block: {subnet['CidrBlock']}")
+            print(f"    Availability Zone: {subnet['AvailabilityZone']}")
+            print(f"    Available IPs: {subnet['AvailableIpAddressCount']}")
+        except ClientError:
+            print("    Unable to fetch subnet details")
+
+def main():
+    parser = argparse.ArgumentParser(description='List VPC resources in CloudFormation stacks')
+    parser.add_argument('--region', required=True, help='AWS region')
+    parser.add_argument('--vpc-id', help='Specific VPC ID to filter')
+    
+    args = parser.parse_args()
+    
+    analyzer = VPCResourceAnalyzer(args.region)
+    analyzer.list_vpc_resources(args.vpc_id)
+
+if __name__ == '__main__':
+    main()

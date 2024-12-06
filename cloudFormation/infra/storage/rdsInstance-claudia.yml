@@ -1,0 +1,131 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Aurora PostgreSQL Cluster with EXACT provided parameters'
+
+Parameters:
+  VpcId:
+    Type: String
+    Description: VPC ID
+
+  VpcCidrBlock:
+    Type: String
+    Description: VPC CIDR Block
+
+  PrivateSubnetId:
+    Type: String
+    Description: Private Subnet ID
+
+  VpcEndpointSecurityGroupId:
+    Type: String
+    Description: VPC Endpoint Security Group ID
+
+  EnvironmentName:
+    Type: String
+    Description: Environment Name
+
+  DBName:
+    Type: String
+    Description: Database Name
+
+  DBUsername:
+    Type: String
+    Description: Database Username
+
+  DBPassword:
+    Type: String
+    Description: Database Password
+    NoEcho: true
+
+  DBInstanceClass:
+    Type: String
+    Description: Database Instance Class
+
+  DBAllocatedStorage:
+    Type: String
+    Description: Allocated Storage Size
+
+Resources:
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for Aurora PostgreSQL
+      SubnetIds: 
+        - subnet-068466839e6791da5
+        - subnet-0d3bbcc56df4e7ffe
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-subnet-group
+
+  AuroraCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      Engine: aurora-postgresql
+      EngineVersion: '13.8'
+      DatabaseName: !Ref DBName
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VpcSecurityGroupIds: 
+        - !Ref VpcEndpointSecurityGroupId
+      Port: 5432
+      StorageEncrypted: true
+      DeletionProtection: true
+      BackupRetentionPeriod: 7
+      PreferredBackupWindow: '03:00-04:00'
+      PreferredMaintenanceWindow: 'Mon:04:00-Mon:05:00'
+      NetworkType: DUAL
+      ServerlessV2ScalingConfiguration:
+        MaxCapacity: 1.0
+        MinCapacity: 0.5
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-aurora-cluster
+
+  AuroraInstance1:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: aurora-postgresql
+      DBClusterIdentifier: !Ref AuroraCluster
+      DBInstanceClass: !Ref DBInstanceClass
+      AvailabilityZone: us-east-1a
+      PubliclyAccessible: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-aurora-instance-1
+
+  AuroraInstance2:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: aurora-postgresql
+      DBClusterIdentifier: !Ref AuroraCluster
+      DBInstanceClass: !Ref DBInstanceClass
+      AvailabilityZone: us-east-1b
+      PubliclyAccessible: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-aurora-instance-2
+
+  VPCEndpointInterface:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      VpcId: !Ref VpcId
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.rds
+      SubnetIds:
+        - subnet-068466839e6791da5
+        - subnet-0d3bbcc56df4e7ffe
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroupId
+      PrivateDnsEnabled: true
+
+Outputs:
+  ClusterEndpoint:
+    Description: Aurora Cluster Endpoint
+    Value: !GetAtt AuroraCluster.Endpoint.Address
+
+  ReaderEndpoint:
+    Description: Aurora Reader Endpoint
+    Value: !GetAtt AuroraCluster.ReadEndpoint.Address
+
+  VPCEndpointId:
+    Description: VPC Endpoint ID
+    Value: !Ref VPCEndpointInterface

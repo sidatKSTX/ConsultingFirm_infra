@@ -1,0 +1,162 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Main CloudFormation template for multi-environment infrastructure'
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [Dev, UAT, PTE, Production]
+    Description: The target environment for this stack
+
+  VpcCidrBlock:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: The CIDR block for the VPC
+
+  PublicSubnetCidr:
+    Type: String
+    Default: 10.0.1.0/24
+    Description: The CIDR block for the public subnet
+
+  PrivateSubnetCidr:
+    Type: String
+    Default: 10.0.2.0/24
+    Description: The CIDR block for the private subnet
+
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    Description: EC2 instance type
+
+  KeyPairName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of an existing EC2 KeyPair
+
+  DBName:
+    Type: String
+    Default: mydb
+    Description: The name of the database to create
+
+  DBInstanceClass:
+    Type: String
+    Default: db.t3.micro
+    Description: The database instance type
+
+  DBMasterUsername:
+    Type: String
+    NoEcho: true
+    Description: The database admin account username
+
+  DBMasterUserPassword:
+    Type: String
+    NoEcho: true
+    Description: The database admin account password
+
+  S3BucketName:
+    Type: String
+    Description: The name of the S3 bucket
+
+  AlarmEmail:
+    Type: String
+    Description: Email address to notify when alarms are triggered
+
+Resources:
+  NetworkStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: network/vpc.yaml
+      Parameters:
+        Environment: !Ref Environment
+        VpcCidrBlock: !Ref VpcCidrBlock
+
+  SubnetsStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: network/subnets.yaml
+      Parameters:
+        Environment: !Ref Environment
+        VpcId: !GetAtt NetworkStack.Outputs.VpcId
+        PublicSubnetCidr: !Ref PublicSubnetCidr
+        PrivateSubnetCidr: !Ref PrivateSubnetCidr
+        PublicRouteTableId: !GetAtt NetworkStack.Outputs.PublicRouteTableId
+
+  SecurityGroupsStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: network/security-groups.yaml
+      Parameters:
+        Environment: !Ref Environment
+        VpcId: !GetAtt NetworkStack.Outputs.VpcId
+
+  ComputeStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: compute/ec2-instances.yaml
+      Parameters:
+        Environment: !Ref Environment
+        VpcId: !GetAtt NetworkStack.Outputs.VpcId
+        PublicSubnetId: !GetAtt SubnetsStack.Outputs.PublicSubnetId
+        PublicSecurityGroupId: !GetAtt SecurityGroupsStack.Outputs.PublicSecurityGroupId
+        InstanceType: !Ref InstanceType
+        KeyPairName: !Ref KeyPairName
+
+  RDSStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: storage/rds-instance.yaml
+      Parameters:
+        Environment: !Ref Environment
+        VpcId: !GetAtt NetworkStack.Outputs.VpcId
+        PrivateSubnetId: !GetAtt SubnetsStack.Outputs.PrivateSubnetId
+        PrivateSecurityGroupId: !GetAtt SecurityGroupsStack.Outputs.PrivateSecurityGroupId
+        DBName: !Ref DBName
+        DBInstanceClass: !Ref DBInstanceClass
+        DBMasterUsername: !Ref DBMasterUsername
+        DBMasterUserPassword: !Ref DBMasterUserPassword
+
+  S3Stack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: storage/s3-buckets.yaml
+      Parameters:
+        Environment: !Ref Environment
+        BucketName: !Ref S3BucketName
+
+  MonitoringStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: monitoring/cloudwatch-alarms.yaml
+      Parameters:
+        Environment: !Ref Environment
+        EC2InstanceId: !GetAtt ComputeStack.Outputs.WebServerInstanceId
+        RDSInstanceIdentifier: !GetAtt RDSStack.Outputs.RDSInstanceIdentifier
+        S3BucketName: !GetAtt S3Stack.Outputs.S3BucketName
+        AlarmEmail: !Ref AlarmEmail
+
+Outputs:
+  VpcId:
+    Description: ID of the created VPC
+    Value: !GetAtt NetworkStack.Outputs.VpcId
+
+  PublicSubnetId:
+    Description: ID of the Public Subnet
+    Value: !GetAtt SubnetsStack.Outputs.PublicSubnetId
+
+  PrivateSubnetId:
+    Description: ID of the Private Subnet
+    Value: !GetAtt SubnetsStack.Outputs.PrivateSubnetId
+
+  WebServerPublicDNS:
+    Description: Public DNS of the Web Server
+    Value: !GetAtt ComputeStack.Outputs.WebServerPublicDNS
+
+  RDSEndpoint:
+    Description: Endpoint of the RDS instance
+    Value: !GetAtt RDSStack.Outputs.RDSEndpoint
+
+  S3BucketName:
+    Description: Name of the created S3 bucket
+    Value: !GetAtt S3Stack.Outputs.S3BucketName
+
+  AlarmTopicArn:
+    Description: ARN of the SNS topic for alarms
+    Value: !GetAtt MonitoringStack.Outputs.AlarmTopicArn

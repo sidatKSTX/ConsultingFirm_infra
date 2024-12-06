@@ -1,0 +1,35 @@
+# CloudFormation Infrastructure Project
+
+This project contains CloudFormation templates and scripts to deploy a multi-environment infrastructure on AWS.
+
+## Structure
+
+- `iam/`: IAM-related templates
+- `infrastructure/`: Main infrastructure components
+- `environments/`: Environment-specific configurations
+- `scripts/`: Deployment and management scripts
+
+## Deployment
+
+To deploy the infrastructure:
+
+1. Deploy the initial IAM stack:
+   ```
+   ./scripts/deploy.sh iam dev
+   ```
+
+2. Deploy the main infrastructure:
+   ```
+   ./scripts/deploy.sh infrastructure dev
+   ```
+
+## Cleanup
+
+To remove the infrastructure:
+```
+./scripts/cleanup.sh dev
+```
+
+## Note
+
+Ensure you have the AWS CLI configured with appropriate credentials before running any scripts.

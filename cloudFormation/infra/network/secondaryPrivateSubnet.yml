@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Creates a secondary private subnet with route table, NAT gateway, and security group configurations to match the existing private subnet in a different AZ'
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The ID of the existing VPC
+
+  SecondaryAZ:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: us-east-1b
+    Description: The availability zone for the secondary private subnet
+
+  SecondaryPrivateSubnetCidr:
+    Type: String
+    Default: 10.0.3.0/24
+    Description: The CIDR block for the secondary private subnet
+
+  NatGatewayId:
+    Type: AWS::EC2::NatGateway::Id
+    Description: The ID of the existing NAT gateway for outbound internet access
+
+  PrivateSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: The ID of the existing security group for private subnet resources
+
+Resources:
+  # Secondary Private Subnet in a different AZ
+  SecondaryPrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VpcId
+      CidrBlock: !Ref SecondaryPrivateSubnetCidr
+      AvailabilityZone: !Ref SecondaryAZ
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: "Secondary Private Subnet"
+
+  # Route Table for Secondary Private Subnet
+  SecondaryPrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: "Secondary Private Subnet Route Table"
+
+  # Route for Outbound Access via NAT Gateway
+  SecondaryPrivateRoute:
+    Type: AWS::EC2::Route
+    DependsOn: SecondaryPrivateRouteTable
+    Properties:
+      RouteTableId: !Ref SecondaryPrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayId
+
+  # Associate Route Table with Secondary Private Subnet
+  SecondaryPrivateSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SecondaryPrivateSubnet
+      RouteTableId: !Ref SecondaryPrivateRouteTable
+
+Outputs:
+  SecondaryPrivateSubnetId:
+    Description: The ID of the secondary private subnet
+    Value: !Ref SecondaryPrivateSubnet
+    Export:
+      Name: !Sub "${AWS::StackName}-SecondaryPrivateSubnetId"
+
+  SecondaryPrivateRouteTableId:
+    Description: The ID of the secondary private subnet route table
+    Value: !Ref SecondaryPrivateRouteTable
+    Export:
+      Name: !Sub "${AWS::StackName}-SecondaryPrivateRouteTableId"
+
